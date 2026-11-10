@@ -15,6 +15,7 @@ stop_value          = 2
 is_playing          = False
 volume_link         = False
 normalize_volume    = False
+loop                = False
 
 
 def handle_osc_data(address, *args):
@@ -83,41 +84,59 @@ def set_volume_link():
         print("OSC data input not linked to volume")
 
 
+def set_loop():
+        global loop
+        print("\nLoop? (Y/N) + ENTER")
+        user_input = input().lower()
+
+        if user_input == "y":
+            loop = True
+            print("Loop on")
+        elif user_input == "n":
+            loop = False
+            print("Loop off")
+
+
 # Run OSC server in background thread
 server_thread = threading.Thread(target=start_server, daemon=True)
 server_thread.start()
 
 
 mixer.init()
-ambience_loop = mixer.Sound("audio/ambience_loop.flac")
-ambience_loop.set_volume(1)
+sound = mixer.Sound("audio/vine_boom.mp3")
+sound.set_volume(1)
 
 
 try:
-    set_start_value() # Ask user for start value
-    set_stop_value() # Ask user for stop value
-    set_volume_link() # Ask user if they want to link the volume to the osc data input
-    #TODO: Ask user if they want to loop
+    set_start_value()   # Ask user for start value
+    set_stop_value()    # Ask user for stop value
+    set_volume_link()   # Ask user if they want to link the volume to the osc data input
+    set_loop()          # Ask user if they want to loop
 
     while True:
         #TODO: no sound plays when start value is larger than stop value
+        #TODO: oneshot stops when osc data is out of start-stop range
+        #TODO: oneshot plays twice for some reason when osc data stays in start stop range
         if start_value < osc_data < stop_value:
             if not is_playing:
-                ambience_loop.play(-1)
+                if loop:
+                    sound.play(-1)
+                else:
+                    sound.play(1)
                 is_playing = True
         else:
             if is_playing:
-                ambience_loop.stop()
+                sound.stop()
                 is_playing = False
 
         if volume_link:
             if normalize_volume:
-                ambience_loop.set_volume((osc_data - start_value) / (stop_value - start_value)) # Normalize to [0-1]
+                sound.set_volume((osc_data - start_value) / (stop_value - start_value)) # Normalize to [0-1]
             else:
-                ambience_loop.set_volume(osc_data)
+                sound.set_volume(osc_data)
 
         time.sleep(0.001)
 
 except KeyboardInterrupt:
-    ambience_loop.stop()
+    sound.stop()
     print("\nProgram terminated.")
