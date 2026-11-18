@@ -10,8 +10,8 @@ ip_address      = "127.0.0.1"
 
 #NOTE: These variables could perhaps go into a dictionary for each sound
 osc_data            = 0
-start_value         = -1
-stop_value          = 2
+min_value           = -1
+max_value            = 2
 is_playing          = False
 volume_link         = False
 normalize_volume    = False
@@ -31,31 +31,31 @@ def start_server():
 
 
 #TODO: Add ValueErrors
-def set_start_value():
-    global start_value
-    print(  "\nENTER        - Set start value",
-            "\nN + ENTER    - Don't set start value")
+def set_min_value():
+    global min_value
+    print(  "\nENTER        - Set minimum play range value",
+            "\nN + ENTER    - Don't set minimum play range value")
     user_input = input().lower()
 
     if user_input == "n":
-        start_value = -1 # Set to a value outside the range [0 - 1]
+        min_value = -1 # Set to a value outside the range [0 - 1]
         print("No start value set")
     else:
-        start_value = osc_data
+        min_value = osc_data
         print(f"Start value set to {osc_data}")
 
 
-def set_stop_value():
-    global stop_value
-    print(  "\nENTER        - Set stop value",
-            "\nN + ENTER    - Don't set stop value")
+def set_max_value():
+    global max_value
+    print(  "\nENTER        - Set maximum play range value",
+            "\nN + ENTER    - Don't set maximum play range value")
     user_input = input().lower()
 
     if user_input == "n":
-        stop_value = 2 # Set to a value outside the range [0-1]
+        max_value = 2 # Set to a value outside the range [0-1]
         print("No stop value set")
     else:
-        stop_value = osc_data
+        max_value = osc_data
         print(f"Stop value set to {osc_data}")
 
 
@@ -104,36 +104,35 @@ server_thread.start()
 
 mixer.init()
 sound = mixer.Sound("audio/vine_boom.mp3")
+channel = None
 sound.set_volume(1)
 
 
 try:
-    set_start_value()   # Ask user for start value
-    set_stop_value()    # Ask user for stop value
+    set_min_value()     # Ask user for minimum value of play range
+    set_max_value()     # Ask user for maximum value of pay range
     set_volume_link()   # Ask user if they want to link the volume to the osc data input
     set_loop()          # Ask user if they want to loop
 
     while True:
-        #TODO: no sound plays when start value is larger than stop value
-        #TODO: oneshot stops when osc data is out of start-stop range
-        #TODO: oneshot plays twice for some reason when osc data stays in start stop range
-        if start_value < osc_data < stop_value:
-            if not is_playing:
-                if loop:
-                    sound.play(-1)
-                else:
-                    sound.play(1)
-                is_playing = True
-        else:
-            if is_playing:
-                sound.stop()
-                is_playing = False
+        #TODO: no sound plays when min value is larger than max value
 
-        if volume_link:
+        in_range = min_value < osc_data < max_value
+
+        # If inside range and not already playing, play as either loop or oneshot
+        if in_range:
+            if channel is None or not channel.get_busy():
+                channel = sound.play(-1 if loop else 0)
+        # If outside range, only stop the sound if it's looping
+        elif loop:
+                if channel is not None and channel.get_busy():
+                    channel.stop()
+                channel = None
+        # If the sound is not looping it finishes on its own
+
+        if volume_link and channel is not None and channel.get_busy():
             if normalize_volume:
-                sound.set_volume((osc_data - start_value) / (stop_value - start_value)) # Normalize to [0-1]
-            else:
-                sound.set_volume(osc_data)
+                channel.set_volume((osc_data - min_value) / (max_value - min_value)) # Normalize to [0-1]
 
         time.sleep(0.001)
 
